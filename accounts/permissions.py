@@ -16,7 +16,6 @@ class IsUser(permissions.BasePermission):
 class IsOwnerOrAdmin(permissions.BasePermission):
     
     def has_object_permission(self, request, view, obj):
-       
         if isinstance(obj, request.user.__class__): 
             return obj == request.user or request.user.role == Role.SUPER_ADMIN
         

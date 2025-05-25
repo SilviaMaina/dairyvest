@@ -8,7 +8,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 
 from .models import CustomUser, Role
 from .serializers import (
-    UserRegistrationSerializer, 
+    RegisterUserSerializer, 
     UserDetailSerializer, 
     MyTokenObtainPairSerializer, 
     LoginRequestSerializer
@@ -16,15 +16,15 @@ from .serializers import (
 from .permissions import IsSuperAdmin, IsOwnerOrAdmin
 
 
-
+# JWT Token View
 class MyTokenObtainPairView(TokenObtainPairView):
     serializer_class = MyTokenObtainPairSerializer
 
 
-# Base class for role-specific registration
+# Abstract base registration view to avoid duplication
 class UserRegistrationBaseView(generics.CreateAPIView):
     queryset = CustomUser.objects.all()
-    serializer_class = UserRegistrationSerializer
+    serializer_class = RegisterUserSerializer
 
     def perform_create(self, serializer):
         serializer.save(
@@ -34,25 +34,28 @@ class UserRegistrationBaseView(generics.CreateAPIView):
         )
 
 
+# Super Admin registration endpoint
 class SuperAdminRegistrationView(UserRegistrationBaseView):
-    permission_classes = [AllowAny]  # Adjust to IsSuperAdmin if only SAs should register others
+    permission_classes = [AllowAny]  # Or use [IsSuperAdmin] for tighter control
     role_to_set = Role.SUPER_ADMIN
     is_staff_status = True
     is_superuser_status = True
 
 
+# Finance Manager registration endpoint (only accessible by Super Admins)
 class FinanceManagerRegistrationView(UserRegistrationBaseView):
     permission_classes = [IsSuperAdmin]
     role_to_set = Role.FINANCE_MANAGER
     is_staff_status = True
 
 
+# Regular User registration endpoint
 class UserRegistrationView(UserRegistrationBaseView):
     permission_classes = [AllowAny]
     role_to_set = Role.USER
 
 
-# Optional custom login view
+# Custom login endpoint (instead of default JWT view)
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def custom_login_view(request):
@@ -75,14 +78,13 @@ def custom_login_view(request):
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-# User ViewSet
+# User management viewset with RBAC controls
 class UserViewSet(viewsets.ModelViewSet):
     queryset = CustomUser.objects.all()
-    serializer_class = UserDetailSerializer
 
     def get_serializer_class(self):
         if self.action == 'create':
-            return UserRegistrationSerializer
+            return RegisterUserSerializer
         return UserDetailSerializer
 
     def get_permissions(self):

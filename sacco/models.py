@@ -1,22 +1,36 @@
 from django.db import models
 from django.utils import timezone
 from django.conf import settings
-from accounts.models import Sacco,Role
+from accounts.models import Role  # Assuming Role enum/choices still here
 
+from django.db import models
 
+class Sacco(models.Model):
+    name = models.CharField(max_length=255)
+    registration_number = models.CharField(max_length=100, unique=True)
+    created_at = models.DateTimeField(auto_now_add=True)
 
+    def __str__(self):
+        return self.name
 
+# Tracks member contributions to their SACCO
 class Contribution(models.Model):
-    member = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='contributions', limit_choices_to={'role': Role.USER})
-    sacco = models.ForeignKey(Sacco, on_delete=models.CASCADE, related_name='sacco_contributions')
+    member = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='contributions',
+        limit_choices_to={'role': Role.USER}
+    )
+    sacco = models.ForeignKey('sacco.Sacco', on_delete=models.CASCADE, related_name='contributions')
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     contribution_date = models.DateField(auto_now_add=True)
-    contribution_type = models.CharField(max_length=50, default='monthly')     
-    
+    contribution_type = models.CharField(max_length=50, default='monthly')
 
     def __str__(self):
         return f"{self.member.username} - {self.amount} - {self.contribution_date}"
 
+
+# Represents a loan requested by a SACCO member
 class Loan(models.Model):
     STATUS_CHOICES = [
         ('PENDING', 'Pending'),
@@ -25,8 +39,13 @@ class Loan(models.Model):
         ('REPAID', 'Repaid'),
         ('DEFAULTED', 'Defaulted'),
     ]
-    member = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='loans', limit_choices_to={'role': Role.USER})
-    sacco = models.ForeignKey(Sacco, on_delete=models.CASCADE, related_name='sacco_loans')
+    member = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='loans',
+        limit_choices_to={'role': Role.USER}
+    )
+    sacco = models.ForeignKey('sacco.Sacco', on_delete=models.CASCADE, related_name='loans')
     amount_requested = models.DecimalField(max_digits=10, decimal_places=2)
     amount_approved = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='PENDING')
@@ -37,16 +56,27 @@ class Loan(models.Model):
 
     def __str__(self):
         return f"Loan for {self.member.username} - {self.amount_requested} ({self.status})"
+
+
+# Tracks repayments made toward a loan
 class LoanRepayment(models.Model):
     loan = models.ForeignKey(Loan, on_delete=models.CASCADE, related_name='repayments')
     amount_paid = models.DecimalField(max_digits=10, decimal_places=2)
     payment_date = models.DateField(auto_now_add=True)
+
     def __str__(self):
         return f"Repayment for loan {self.loan.id} - {self.amount_paid}"
-    
+
+
+# Represents livestock owned by SACCO members
 class Animal(models.Model):
-    owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='animals', limit_choices_to={'role': Role.USER})
-    sacco = models.ForeignKey(Sacco, on_delete=models.CASCADE, related_name='sacco_animals')
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='animals',
+        limit_choices_to={'role': Role.USER}
+    )
+    sacco = models.ForeignKey('sacco.Sacco', on_delete=models.CASCADE, related_name='animals')
     animal_type = models.CharField(max_length=50, default='Cow')
     tag_number = models.CharField(max_length=50, unique=True, null=True, blank=True)
     count = models.PositiveIntegerField(default=1)
@@ -55,9 +85,16 @@ class Animal(models.Model):
     def __str__(self):
         return f"{self.animal_type} ({self.tag_number or 'Group'}) - Owner: {self.owner.username}"
 
+
+# Tracks milk production per animal per day
 class MilkProduction(models.Model):
-    farmer = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='milk_records', limit_choices_to={'role': Role.USER})
-    sacco = models.ForeignKey(Sacco, on_delete=models.CASCADE, related_name='sacco_milk_production')
+    farmer = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='milk_records',
+        limit_choices_to={'role': Role.USER}
+    )
+    sacco = models.ForeignKey('sacco.Sacco', on_delete=models.CASCADE, related_name='milk_production')
     animal = models.ForeignKey(Animal, on_delete=models.SET_NULL, null=True, blank=True, related_name='milk_production')
     litres_produced = models.DecimalField(max_digits=7, decimal_places=2)
     date_recorded = models.DateField()
@@ -67,5 +104,3 @@ class MilkProduction(models.Model):
 
     def __str__(self):
         return f"{self.farmer.username} - {self.litres_produced}L on {self.date_recorded}"
-
-
